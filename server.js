@@ -63,7 +63,7 @@ app.get("/", (req, res) => {
 
 app.post("/api/chat", async (req, res) => {
   try {
-    const { message, creator } = req.body;
+    const { message, creator, history } = req.body;
 
     console.log("\n📩 New request received");
 
@@ -94,6 +94,26 @@ app.post("/api/chat", async (req, res) => {
       dateStyle: "full",
       timeStyle: "medium",
     });
+
+    const normalizedHistory = Array.isArray(history)
+      ? history
+          .filter((item) => {
+            return (
+              item &&
+              typeof item.content === "string" &&
+              item.content.trim() !== "" &&
+              ["user", "assistant", "ai"].includes(item.role)
+            );
+          })
+          .map((item) => ({
+            role: item.role === "ai" ? "assistant" : item.role,
+            content: item.content.trim(),
+          }))
+          .slice(-20)
+      : [];
+    const conversationHistory = normalizedHistory.length > 0
+      ? normalizedHistory
+      : [{ role: "user", content: message.trim() }];
 
     // ================= ASK GROQ AI =================
 
@@ -172,28 +192,21 @@ You help students with:
 
 ================ RESPONSE STYLE ================
 
-Always:
+- Be concise and direct by default. Give the shortest correct answer that solves the request.
+- For simple questions, usually answer in 1-5 lines.
+- For programming questions, provide the requested code first, followed by only a brief explanation when useful.
+- Do not provide multiple languages unless the user explicitly asks for them.
+- Give a detailed explanation, step-by-step guide, or extra examples only when the user asks for detail.
+- Do not add greetings, repeated context, conclusions, tips, or filler unless they are useful.
+- Use the conversation history to understand short follow-ups. Treat messages such as "in Java", "in Python", or "explain it" as referring to the immediately relevant prior request or answer.
+- When a follow-up is clear from the history, answer it directly without asking for clarification.
+- Preserve the user's original task when changing its language, format, or level of explanation.
+- Stay correct even when being brief.
 
-- Be friendly and helpful
-- Explain things in simple language
-- Be beginner-friendly
-- Give step-by-step instructions when necessary
-
-When fixing an error:
-
-1. Identify the problem.
-2. Explain why it happened.
-3. Give the solution step by step.
-4. Provide corrected code when possible.
-5. Explain exactly where the user should place the code.
-
-You are ProjectHub AI 🤖.
+You are ProjectHub AI.
 `,
         },
-        {
-          role: "user",
-          content: message,
-        },
+        ...conversationHistory,
       ],
     });
 
